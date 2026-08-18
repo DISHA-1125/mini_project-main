@@ -1,73 +1,78 @@
-# FindIt
+# FindIt — Real-Time Lost & Found Platform
 
-Production-oriented real-time Lost & Found app: **Next.js App Router**, **TypeScript**, **Tailwind**, **Supabase (PostGIS + Realtime + Auth + Storage)**, **Mapbox GL JS**.
+A modern lost & found platform with **live location tracking**, **Socket.io real-time updates**, **three secure dashboards**, and **OTP/QR handover verification**.
 
-## What you get
+## Tech Stack
 
-| Layer | Implementation |
+| Layer | Technology |
 | --- | --- |
-| Schema | `supabase/migrations/20240817_init.sql` — profiles, items (`geography`), images, conversations, messages, RPCs, RLS, storage, realtime |
-| App Router | `app/` pages, auth callback, `/api/match`, `/api/items/nearby` |
-| Map | `components/map/findit-map.tsx` — clusters, red lost / green found, live GeoJSON, radius polygon |
-| Alerts | Home-area radius + toast on `items` INSERT via Realtime |
-| AI matcher | Vision tags → `visual_tags` → `match_opposing_items` (opposing lost↔found) |
-| Claims | Finder sets a secret question; claimant must match before precise details |
+| Framework | Next.js 15 (App Router) |
+| Styling | Tailwind CSS 4 (beacon/radar theme) |
+| Database | Prisma + SQLite |
+| Real-time | Socket.io |
+| Maps | MapLibre GL + OpenStreetMap |
+| Auth | JWT (httpOnly cookies) |
 
-## Directory structure
+## Three Dashboards
 
-```
-app/
-  layout.tsx / page.tsx / globals.css
-  login/page.tsx
-  auth/callback/route.ts
-  api/match/route.ts
-  api/items/nearby/route.ts
-components/
-  map/findit-map.tsx          ← primary Mapbox + clustering
-  map/radius-slider.tsx
-  items/item-list.tsx
-  items/report-item-modal.tsx
-  chat/chat-panel.tsx
-  claims/verify-claim-modal.tsx
-  findit-shell.tsx            ← map/list toggle, alerts, report flow
-  layout/header.tsx
-  ui/                         ← shadcn-style primitives
-hooks/
-  use-items-realtime.ts
-  use-home-area-alerts.ts
-lib/
-  supabase/client.ts | server.ts | middleware.ts
-  geo.ts / types.ts / utils.ts
-supabase/migrations/20240817_init.sql
-```
+1. **User/Finder** — Report lost/found items, live map, chat with matches, manage listings
+2. **Admin/Authority** — Monitor all listings, verify claims, handle flagged items, analytics
+3. **Security/Campus Guard** — Log handovers, verify collection via OTP & QR codes
 
 ## Setup
 
-1. Create a Supabase project. Enable **PostGIS** and **pgvector** (Database → Extensions). Enable Realtime for `items`, `messages`, `conversations` if the migration publication step is skipped.
-2. Auth → enable Email magic link and Google/GitHub OAuth. Add redirect `http://localhost:3000/auth/callback`.
-3. Run the SQL in `supabase/migrations/20240817_init.sql` (SQL editor or `supabase db push`).
-4. Copy `.env.example` to `.env.local` and fill:
+1. Copy environment file:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Push database schema and seed demo data:
+   ```bash
+   npm run db:push
+   npm run db:seed
+   ```
+
+4. Start the dev server (includes Socket.io):
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000)
+
+## Demo Accounts
+
+Password for all: `password123`
+
+| Role | Email |
+| --- | --- |
+| User | user@findit.com |
+| Admin | admin@findit.com |
+| Security | security@findit.com |
+
+## Project Structure
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_MAPBOX_TOKEN=
-OPENAI_API_KEY=          # or GEMINI_API_KEY
-AI_PROVIDER=openai
+app/
+  page.tsx                    # Landing page
+  login/ register/            # Auth pages
+  dashboard/user/             # Finder dashboard
+  dashboard/admin/            # Admin dashboard
+  dashboard/security/         # Security dashboard
+  api/                        # REST API routes
+components/
+  map/live-map.tsx            # MapLibre live map
+  items/report-item-modal.tsx
+  layout/dashboard-shell.tsx
+  ui/                         # shadcn-style components
+hooks/use-realtime.ts         # Socket.io hooks
+lib/
+  auth.ts prisma.ts geo.ts    # Core utilities
+  socket-server.ts            # Socket.io server
+prisma/schema.prisma          # Database schema
+server.ts                     # Custom Next.js + Socket.io server
 ```
-
-5. Install and run:
-
-```bash
-npm install
-npm run dev
-```
-
-Mapbox token: [mapbox.com](https://account.mapbox.com/). Radius slider is 1–20 km and re-queries `items_within_radius` (PostGIS `ST_DWithin` on `geography`, meters).
-
-## Security notes
-
-- Precise coordinates are **not** exposed by `items_public` / the nearby RPC. Use `item_precise_details` after a **verified** conversation.
-- Verification answers are stored as SHA-256 of the normalized string, never as plaintext.
-- Storage uploads must live under `{auth.uid()}/...`.
-- Chat RLS is participant-only; Realtime still respects RLS when the client is authenticated.
