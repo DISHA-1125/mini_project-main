@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SECURITY
+}
+
+enum ItemType {
+  LOST
+  FOUND
+}
+
+enum ItemStatus {
+  ACTIVE
+  MATCHED
+  CLAIMED
+  RESOLVED
+  FLAGGED
+  DISPUTED
+}
+
+enum ClaimStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  HANDED_OVER
+}
+
+enum NotificationType {
+  MATCH
+  MESSAGE
+  CLAIM
+  HANDOVER
+  SYSTEM
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  passwordHash  String
+  role          Role           @default(USER)
+  avatarUrl     String?
+  phone         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  items         Item[]
+  sentMessages  Message[]      @relation("SentMessages")
+  conversations Conversation[] @relation("ConversationParticipants")
+  notifications Notification[]
+  claims        ClaimAudit[]   @relation("Claimant")
+  handovers     Handover[]     @relation("SecurityOfficer")
+  collections   Handover[]     @relation("Collector")
+}
+
+model Item {
+  id              String       @id @default(cuid())
+  title           String
+  description     String
+  category        String
+  type            ItemType
+  status          ItemStatus   @default(ACTIVE)
+  imageUrl        String?
+  verificationQ   String?
+  verificationA   String?
+  reportedById    String
+  reportedBy      User         @relation(fields: [reportedById], references: [id])
+  location        Location?
+  conversations   Conversation[]
+  claims          ClaimAudit[]
+  handovers       Handover[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  latitude  Float
+  longitude Float
+  address   String?
+  accuracy  Float?
+  itemId    String   @unique
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+}
+
+model Conversation {
+  id           String    @id @default(cuid())
+  itemId       String
+  item         Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  participants User[]    @relation("ConversationParticipants")
+  messages     Message[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  content        String
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  metadata  String?
+  createdAt DateTime         @default(now())
+}
+
+model ClaimAudit {
+  id          String      @id @default(cuid())
+  itemId      String
+  item        Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  claimantId  String
+  claimant    User        @relation("Claimant", fields: [claimantId], references: [id])
+  status      ClaimStatus @default(PENDING)
+  answer      String?
+  notes       String?
+  verifiedBy  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Handover {
+  id              String   @id @default(cuid())
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  securityId      String
+  security        User     @relation("SecurityOfficer", fields: [securityId], references: [id])
+  collectorId     String?
+  collector       User?    @relation("Collector", fields: [collectorId], references: [id])
+  otpCode         String
+  qrToken         String   @unique
+  verified        Boolean  @default(false)
+  collectedAt     DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+}
